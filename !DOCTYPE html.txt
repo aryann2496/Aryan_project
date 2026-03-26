@@ -1,0 +1,1297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VRPTW — Vehicle Routing with Time Windows</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0c10;
+    --panel: #111318;
+    --border: #1e2230;
+    --accent: #00e5a0;
+    --accent2: #ff6b35;
+    --accent3: #4dabf7;
+    --text: #e8eaf0;
+    --muted: #5a6070;
+    --warn: #ffd43b;
+    --depot: #ff6b35;
+    --grid: #141720;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Space Mono', monospace;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* TOP BAR */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 28px;
+    height: 56px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel);
+    flex-shrink: 0;
+  }
+
+  .logo {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 1.1rem;
+    letter-spacing: 0.05em;
+    color: var(--accent);
+  }
+
+  .logo span { color: var(--text); }
+
+  .header-status {
+    display: flex;
+    gap: 24px;
+    font-size: 0.7rem;
+    color: var(--muted);
+  }
+
+  .status-pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--muted);
+  }
+
+  .dot.active { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+
+  /* MAIN LAYOUT */
+  main {
+    display: grid;
+    grid-template-columns: 260px 1fr 260px;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* PANELS */
+  .panel {
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .panel.right { border-right: none; border-left: 1px solid var(--border); }
+
+  .panel-header {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    font-family: 'Syne', sans-serif;
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 0.15em;
+    color: var(--muted);
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+
+  .panel-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 14px;
+  }
+
+  .panel-body::-webkit-scrollbar { width: 3px; }
+  .panel-body::-webkit-scrollbar-thumb { background: var(--border); }
+
+  /* CONTROLS */
+  .ctrl-group { margin-bottom: 18px; }
+
+  .ctrl-label {
+    font-size: 0.6rem;
+    color: var(--muted);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  .ctrl-row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+
+  input[type=range] {
+    -webkit-appearance: none;
+    flex: 1;
+    height: 2px;
+    background: var(--border);
+    outline: none;
+    border-radius: 2px;
+  }
+
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+  }
+
+  .val-badge {
+    font-size: 0.65rem;
+    color: var(--accent);
+    min-width: 28px;
+    text-align: right;
+  }
+
+  .btn {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text);
+    font-family: 'Space Mono', monospace;
+    font-size: 0.7rem;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: left;
+    letter-spacing: 0.05em;
+    margin-bottom: 6px;
+  }
+
+  .btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  .btn.primary {
+    background: var(--accent);
+    color: #000;
+    border-color: var(--accent);
+    font-weight: 700;
+  }
+
+  .btn.primary:hover { background: #00ffb3; }
+
+  .btn.danger { border-color: var(--accent2); color: var(--accent2); }
+  .btn.danger:hover { background: var(--accent2); color: #000; }
+
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* SPEED BUTTONS */
+  .speed-row { display: flex; gap: 4px; }
+  .speed-btn {
+    flex: 1; padding: 6px; border: 1px solid var(--border);
+    background: transparent; color: var(--muted);
+    font-family: 'Space Mono', monospace; font-size: 0.6rem;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .speed-btn.active { border-color: var(--accent3); color: var(--accent3); }
+
+  /* VEHICLE LIST */
+  .vehicle-item {
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    margin-bottom: 6px;
+    border-radius: 2px;
+    transition: border-color 0.15s;
+    cursor: default;
+  }
+
+  .vehicle-item.active { border-color: var(--accent); }
+
+  .v-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+  }
+
+  .v-name {
+    font-family: 'Syne', sans-serif;
+    font-weight: 600;
+    font-size: 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .v-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+  }
+
+  .v-status {
+    font-size: 0.55rem;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+  }
+
+  .v-bar-bg {
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .v-bar {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.3s;
+  }
+
+  .v-meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.55rem;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+
+  /* STATS */
+  .stat-block {
+    padding: 12px;
+    border: 1px solid var(--border);
+    margin-bottom: 6px;
+  }
+
+  .stat-label {
+    font-size: 0.55rem;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+
+  .stat-value {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 1.3rem;
+    color: var(--accent);
+  }
+
+  .stat-value.warn { color: var(--warn); }
+  .stat-value.bad { color: var(--accent2); }
+
+  .stat-sub {
+    font-size: 0.55rem;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+
+  /* CUSTOMER LOG */
+  .log-entry {
+    padding: 8px 10px;
+    border-left: 2px solid var(--border);
+    margin-bottom: 6px;
+    font-size: 0.6rem;
+    line-height: 1.6;
+  }
+
+  .log-entry.ok { border-color: var(--accent); }
+  .log-entry.late { border-color: var(--warn); }
+  .log-entry.missed { border-color: var(--accent2); }
+
+  .log-time {
+    color: var(--muted);
+    font-size: 0.55rem;
+  }
+
+  /* MAP CANVAS AREA */
+  .map-area {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .map-toolbar {
+    padding: 10px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    font-size: 0.6rem;
+    color: var(--muted);
+    flex-shrink: 0;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .legend-sq {
+    width: 10px; height: 10px;
+    border-radius: 2px;
+  }
+
+  canvas {
+    display: block;
+    flex: 1;
+    width: 100%;
+  }
+
+  /* CLOCK */
+  .clock-bar {
+    padding: 10px 20px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-shrink: 0;
+    background: var(--panel);
+  }
+
+  .clock-time {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 1.1rem;
+    color: var(--accent);
+    min-width: 72px;
+  }
+
+  .timeline {
+    flex: 1;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .timeline-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent3));
+    border-radius: 3px;
+    transition: width 0.2s;
+  }
+
+  .phase-label {
+    font-size: 0.6rem;
+    color: var(--muted);
+    min-width: 80px;
+    text-align: right;
+  }
+
+  /* TOOLTIP */
+  #tooltip {
+    position: fixed;
+    background: var(--panel);
+    border: 1px solid var(--accent);
+    padding: 8px 12px;
+    font-size: 0.6rem;
+    pointer-events: none;
+    z-index: 100;
+    display: none;
+    line-height: 1.7;
+    max-width: 200px;
+  }
+
+  #tooltip .tt-title {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 0.75rem;
+    color: var(--accent);
+    margin-bottom: 4px;
+  }
+
+  /* ALGO BADGE */
+  .algo-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    background: rgba(0,229,160,0.1);
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    font-size: 0.55rem;
+    letter-spacing: 0.1em;
+  }
+
+  /* PHASE DISPLAY */
+  .phase-display {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 12px;
+  }
+
+  .phase-step {
+    flex: 1;
+    padding: 6px;
+    border: 1px solid var(--border);
+    font-size: 0.55rem;
+    color: var(--muted);
+    text-align: center;
+    letter-spacing: 0.05em;
+  }
+
+  .phase-step.active {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(0,229,160,0.05);
+  }
+
+  .phase-step.done {
+    border-color: var(--muted);
+    color: var(--muted);
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">VRPTW <span>// Simulation Engine</span></div>
+  <div class="header-status">
+    <div class="status-pill">
+      <div class="dot active" id="sim-dot"></div>
+      <span id="sim-state-label">READY</span>
+    </div>
+    <div class="status-pill">
+      <div class="dot"></div>
+      <span id="algo-label">Algorithm: Nearest Neighbor + 2-opt</span>
+    </div>
+  </div>
+</header>
+
+<main>
+  <!-- LEFT PANEL: Controls -->
+  <div class="panel">
+    <div class="panel-header">
+      <span>Configuration</span>
+      <span class="algo-badge">HEURISTIC</span>
+    </div>
+    <div class="panel-body">
+
+      <div class="phase-display">
+        <div class="phase-step active" id="ph-gen">GEN</div>
+        <div class="phase-step" id="ph-plan">PLAN</div>
+        <div class="phase-step" id="ph-run">RUN</div>
+        <div class="phase-step" id="ph-done">DONE</div>
+      </div>
+
+      <div class="ctrl-group">
+        <div class="ctrl-label">Customers</div>
+        <div class="ctrl-row">
+          <input type="range" id="sl-customers" min="5" max="25" value="12">
+          <div class="val-badge" id="val-customers">12</div>
+        </div>
+      </div>
+
+      <div class="ctrl-group">
+        <div class="ctrl-label">Vehicles</div>
+        <div class="ctrl-row">
+          <input type="range" id="sl-vehicles" min="2" max="6" value="3">
+          <div class="val-badge" id="val-vehicles">3</div>
+        </div>
+      </div>
+
+      <div class="ctrl-group">
+        <div class="ctrl-label">Vehicle Capacity</div>
+        <div class="ctrl-row">
+          <input type="range" id="sl-capacity" min="20" max="80" value="40" step="5">
+          <div class="val-badge" id="val-capacity">40</div>
+        </div>
+      </div>
+
+      <div class="ctrl-group">
+        <div class="ctrl-label">Time Window Tightness</div>
+        <div class="ctrl-row">
+          <input type="range" id="sl-tightness" min="1" max="5" value="3">
+          <div class="val-badge" id="val-tightness">3</div>
+        </div>
+      </div>
+
+      <div class="ctrl-group">
+        <div class="ctrl-label">Simulation Speed</div>
+        <div class="speed-row">
+          <button class="speed-btn" data-speed="0.5">0.5×</button>
+          <button class="speed-btn active" data-speed="1">1×</button>
+          <button class="speed-btn" data-speed="2">2×</button>
+          <button class="speed-btn" data-speed="4">4×</button>
+        </div>
+      </div>
+
+      <button class="btn primary" id="btn-generate">▶ Generate Scenario</button>
+      <button class="btn" id="btn-run" disabled>⚡ Run Simulation</button>
+      <button class="btn" id="btn-pause" disabled>⏸ Pause</button>
+      <button class="btn danger" id="btn-reset">↺ Reset</button>
+
+      <div style="margin-top: 16px; padding: 10px; border: 1px solid var(--border); font-size: 0.58rem; color: var(--muted); line-height: 1.7;">
+        <div style="color: var(--accent); font-size: 0.6rem; margin-bottom: 4px;">HOW IT WORKS</div>
+        1. Generate customers with random positions, demands, and time windows<br>
+        2. Planner applies Nearest-Neighbor heuristic + 2-opt improvement<br>
+        3. Routes animated in real-time; violations tracked live
+      </div>
+    </div>
+  </div>
+
+  <!-- CENTER: Map -->
+  <div class="map-area">
+    <div class="map-toolbar">
+      <div class="legend-item"><div class="legend-sq" style="background:var(--depot)"></div> Depot</div>
+      <div class="legend-item"><div class="legend-sq" style="background:var(--accent)"></div> Delivered</div>
+      <div class="legend-item"><div class="legend-sq" style="background:var(--warn)"></div> Late Delivery</div>
+      <div class="legend-item"><div class="legend-sq" style="background:var(--accent2)"></div> Missed Window</div>
+      <div class="legend-item"><div class="legend-sq" style="background:var(--muted)"></div> Pending</div>
+      <div style="margin-left:auto; font-size:0.55rem;">Hover nodes for details</div>
+    </div>
+
+    <canvas id="map-canvas"></canvas>
+
+    <div class="clock-bar">
+      <div class="clock-time" id="clock-display">08:00</div>
+      <div class="timeline"><div class="timeline-fill" id="timeline-fill" style="width:0%"></div></div>
+      <div class="phase-label" id="phase-label">--</div>
+    </div>
+  </div>
+
+  <!-- RIGHT PANEL: Stats + Log -->
+  <div class="panel right">
+    <div class="panel-header">
+      <span>Fleet Status</span>
+      <span id="fleet-count">0 vehicles</span>
+    </div>
+    <div class="panel-body" id="vehicle-panel">
+      <div style="color:var(--muted); font-size:0.65rem; text-align:center; margin-top: 40px;">
+        Generate a scenario<br>to see fleet status
+      </div>
+    </div>
+
+    <div class="panel-header" style="border-top: 1px solid var(--border);">
+      <span>Metrics</span>
+    </div>
+    <div style="padding: 14px; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; flex-shrink:0;">
+      <div class="stat-block">
+        <div class="stat-label">Total Distance</div>
+        <div class="stat-value" id="stat-dist">--</div>
+        <div class="stat-sub">units</div>
+      </div>
+      <div class="stat-block">
+        <div class="stat-label">On Time</div>
+        <div class="stat-value" id="stat-ontime">--</div>
+        <div class="stat-sub">deliveries</div>
+      </div>
+      <div class="stat-block">
+        <div class="stat-label">Late</div>
+        <div class="stat-value warn" id="stat-late">--</div>
+        <div class="stat-sub">deliveries</div>
+      </div>
+      <div class="stat-block">
+        <div class="stat-label">Missed</div>
+        <div class="stat-value bad" id="stat-missed">--</div>
+        <div class="stat-sub">windows</div>
+      </div>
+    </div>
+
+    <div class="panel-header" style="border-top: 1px solid var(--border);">
+      <span>Delivery Log</span>
+    </div>
+    <div class="panel-body" id="log-panel">
+      <div style="color:var(--muted); font-size:0.65rem; text-align:center; margin-top:20px;">
+        Log will appear here
+      </div>
+    </div>
+  </div>
+</main>
+
+<div id="tooltip">
+  <div class="tt-title" id="tt-title"></div>
+  <div id="tt-body"></div>
+</div>
+
+<script>
+// ========== CONSTANTS ==========
+const DAY_START = 8 * 60;   // 08:00
+const DAY_END   = 18 * 60;  // 18:00
+const DAY_DUR   = DAY_END - DAY_START;
+
+const COLORS = [
+  '#00e5a0','#4dabf7','#cc5de8','#ffd43b','#ff6b6b','#74c0fc'
+];
+
+// ========== STATE ==========
+let customers = [], depot = null, vehicles = [], routes = [];
+let simTimer = null, simTime = DAY_START, simSpeed = 1;
+let running = false, generated = false;
+let deliveryLog = [];
+let stats = { dist: 0, ontime: 0, late: 0, missed: 0 };
+let vehicleStates = [];
+let canvas, ctx, W, H;
+let hoverNode = null;
+let animFrames = []; // per-vehicle animation state
+
+// ========== CANVAS SETUP ==========
+function initCanvas() {
+  canvas = document.getElementById('map-canvas');
+  resizeCanvas();
+  window.addEventListener('resize', resizeCanvas);
+  canvas.addEventListener('mousemove', onMouseMove);
+  canvas.addEventListener('mouseleave', () => {
+    hoverNode = null;
+    document.getElementById('tooltip').style.display = 'none';
+  });
+}
+
+function resizeCanvas() {
+  const parent = canvas.parentElement;
+  W = parent.clientWidth;
+  H = parent.clientHeight - 56 - 44; // toolbar + clock
+  canvas.width = W;
+  canvas.height = H;
+  if (generated) drawMap();
+  else drawEmpty();
+}
+
+// ========== SCENARIO GENERATION ==========
+function generateScenario() {
+  const nC = parseInt(document.getElementById('sl-customers').value);
+  const nV = parseInt(document.getElementById('sl-vehicles').value);
+  const cap = parseInt(document.getElementById('sl-capacity').value);
+  const tight = parseInt(document.getElementById('sl-tightness').value);
+
+  const margin = 60;
+
+  depot = {
+    id: 0, x: W / 2, y: H / 2,
+    label: 'DEPOT', isDepot: true
+  };
+
+  customers = [];
+  for (let i = 1; i <= nC; i++) {
+    const x = margin + Math.random() * (W - 2 * margin);
+    const y = margin + Math.random() * (H - 2 * margin);
+    const demand = 5 + Math.floor(Math.random() * 15);
+
+    // Time window
+    const windowSize = (6 - tight) * 20 + 20; // 40..120 min
+    const earliest = DAY_START + Math.floor(Math.random() * (DAY_DUR - windowSize));
+    const latest = earliest + windowSize;
+    const serviceTime = 5 + Math.floor(Math.random() * 10);
+
+    customers.push({
+      id: i, x, y, demand,
+      tw_start: earliest, tw_end: latest,
+      service: serviceTime,
+      label: `C${i}`,
+      status: 'pending',   // pending | served | late | missed
+      arrivedAt: null
+    });
+  }
+
+  vehicles = [];
+  for (let v = 0; v < nV; v++) {
+    vehicles.push({
+      id: v, capacity: cap, color: COLORS[v % COLORS.length],
+      label: `V${v + 1}`
+    });
+  }
+
+  // Plan routes
+  routes = planRoutes(customers, vehicles, depot);
+  initVehicleStates();
+  updateVehiclePanel();
+  updateStats();
+  setPhase(1);
+  setPhaseStep('ph-gen', 'done');
+  setPhaseStep('ph-plan', 'active');
+
+  generated = true;
+  document.getElementById('btn-run').disabled = false;
+  document.getElementById('fleet-count').textContent = `${nV} vehicles`;
+
+  // Short delay to show plan
+  setTimeout(() => {
+    setPhaseStep('ph-plan', 'done');
+    setPhaseStep('ph-run', 'active');
+    drawMap();
+  }, 400);
+
+  drawMap();
+}
+
+// ========== ROUTING ALGORITHM ==========
+function dist(a, b) {
+  return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
+}
+
+function planRoutes(customers, vehicles, depot) {
+  // Speed unit: pixels/min (arbitrary)
+  const speed = 1.2;
+
+  let unassigned = customers.map(c => ({ ...c }));
+  let routes = [];
+
+  for (let v = 0; v < vehicles.length; v++) {
+    if (unassigned.length === 0) break;
+
+    let route = [];
+    let pos = depot;
+    let time = DAY_START;
+    let load = 0;
+    let cap = vehicles[v].capacity;
+
+    while (true) {
+      let best = null, bestScore = Infinity;
+
+      for (let c of unassigned) {
+        if (load + c.demand > cap) continue;
+        const travelTime = dist(pos, c) / speed;
+        const arrTime = time + travelTime;
+        if (arrTime > c.tw_end + 30) continue; // totally infeasible
+
+        const waitTime = Math.max(0, c.tw_start - arrTime);
+        const score = travelTime + waitTime * 0.5 + (arrTime > c.tw_end ? 9999 : 0);
+        if (score < bestScore) { bestScore = score; best = c; }
+      }
+
+      if (!best) break;
+
+      const travelTime = dist(pos, best) / speed;
+      const arrival = time + travelTime;
+      const serviceStart = Math.max(arrival, best.tw_start);
+      const departure = serviceStart + best.service;
+
+      route.push({
+        ...best,
+        travelTime,
+        arrival,
+        serviceStart,
+        departure,
+        vehicleId: v
+      });
+
+      time = departure;
+      load += best.demand;
+      pos = best;
+      unassigned = unassigned.filter(c => c.id !== best.id);
+    }
+
+    if (route.length > 0) {
+      // 2-opt improvement
+      route = twoOpt(route, depot, speed);
+      routes.push({ vehicleId: v, stops: route, load: route.reduce((s,c)=>s+c.demand,0) });
+    }
+  }
+
+  // Assign missed customers
+  for (let c of unassigned) {
+    // assign to least loaded vehicle that has capacity
+    let target = routes.reduce((best, r) =>
+      (r.load + c.demand <= vehicles[r.vehicleId].capacity && r.load < (best ? best.load : Infinity)) ? r : best, null);
+    if (target) {
+      const prevPos = target.stops.length ? target.stops[target.stops.length - 1] : depot;
+      const travelTime = dist(prevPos, c) / 1.2;
+      const prevTime = target.stops.length ? target.stops[target.stops.length - 1].departure : DAY_START;
+      const arrival = prevTime + travelTime;
+      const serviceStart = Math.max(arrival, c.tw_start);
+      const departure = serviceStart + c.service;
+      target.stops.push({ ...c, travelTime, arrival, serviceStart, departure, vehicleId: target.vehicleId });
+      target.load += c.demand;
+    }
+  }
+
+  return routes;
+}
+
+function twoOpt(route, depot, speed) {
+  if (route.length < 4) return route;
+  let improved = true;
+  let best = route.slice();
+  while (improved) {
+    improved = false;
+    for (let i = 1; i < best.length - 1; i++) {
+      for (let j = i + 1; j < best.length; j++) {
+        const newRoute = [...best.slice(0, i), ...best.slice(i, j + 1).reverse(), ...best.slice(j + 1)];
+        if (routeLen(newRoute, depot) < routeLen(best, depot)) {
+          best = newRoute;
+          improved = true;
+        }
+      }
+    }
+  }
+  return best;
+}
+
+function routeLen(route, depot) {
+  let total = 0, prev = depot;
+  for (const c of route) { total += dist(prev, c); prev = c; }
+  return total + dist(prev, depot);
+}
+
+// ========== VEHICLE ANIMATION STATE ==========
+function initVehicleStates() {
+  vehicleStates = routes.map(r => ({
+    vehicleId: r.vehicleId,
+    stopIdx: -1,        // -1 = at depot, n = at stop n
+    phase: 'waiting',  // waiting | moving | serving | returning | done
+    x: depot.x, y: depot.y,
+    targetX: depot.x, targetY: depot.y,
+    progress: 0,
+    color: vehicles[r.vehicleId].color,
+    label: vehicles[r.vehicleId].label,
+    load: vehicles[r.vehicleId].capacity,
+    capacity: vehicles[r.vehicleId].capacity,
+    delivered: 0,
+    routeLoad: r.load,
+    departTime: DAY_START,
+    status: 'Waiting at depot'
+  }));
+  deliveryLog = [];
+  stats = { dist: 0, ontime: 0, late: 0, missed: 0 };
+  customers.forEach(c => c.status = 'pending');
+}
+
+// ========== SIMULATION TICK ==========
+function tick() {
+  if (!running) return;
+  simTime += 0.5 * simSpeed;
+  if (simTime >= DAY_END) {
+    simTime = DAY_END;
+    endSimulation();
+    return;
+  }
+
+  const pct = (simTime - DAY_START) / DAY_DUR * 100;
+  document.getElementById('timeline-fill').style.width = pct + '%';
+  document.getElementById('clock-display').textContent = fmtTime(simTime);
+
+  for (let i = 0; i < routes.length; i++) {
+    const vs = vehicleStates[i];
+    const route = routes[i];
+    if (vs.phase === 'done') continue;
+
+    const nextStop = vs.stopIdx + 1;
+
+    if (nextStop >= route.stops.length) {
+      // Return to depot
+      if (vs.phase !== 'returning' && vs.phase !== 'done') {
+        vs.phase = 'returning';
+        vs.targetX = depot.x; vs.targetY = depot.y;
+        vs.status = 'Returning to depot';
+      }
+      if (vs.phase === 'returning') {
+        const d = dist(vs, { x: depot.x, y: depot.y });
+        if (d < 3) { vs.phase = 'done'; vs.x = depot.x; vs.y = depot.y; vs.status = 'Done'; }
+        else {
+          vs.x += (depot.x - vs.x) * 0.04 * simSpeed;
+          vs.y += (depot.y - vs.y) * 0.04 * simSpeed;
+        }
+      }
+      continue;
+    }
+
+    const stop = route.stops[nextStop];
+
+    // Wait at depot until departure
+    if (simTime < stop.arrival - stop.travelTime && vs.stopIdx === -1) {
+      vs.status = `Waiting — departs ${fmtTime(stop.arrival - stop.travelTime)}`;
+      continue;
+    }
+
+    if (vs.phase === 'waiting' || vs.phase === 'serving') {
+      // Should we start moving?
+      const departTime = vs.stopIdx === -1
+        ? stop.arrival - stop.travelTime
+        : (vs.stopIdx >= 0 ? route.stops[vs.stopIdx].departure : DAY_START);
+
+      if (simTime >= departTime) {
+        vs.phase = 'moving';
+        vs.targetX = stop.x;
+        vs.targetY = stop.y;
+        vs.status = `→ ${stop.label}`;
+      }
+    }
+
+    if (vs.phase === 'moving') {
+      const dx = stop.x - vs.x, dy = stop.y - vs.y;
+      const d = Math.sqrt(dx * dx + dy * dy);
+      if (d < 4 * simSpeed) {
+        vs.x = stop.x; vs.y = stop.y;
+        vs.stopIdx = nextStop;
+        vs.phase = 'serving';
+        vs.status = `Serving ${stop.label}`;
+
+        // Evaluate time window
+        const arr = simTime;
+        const c = customers.find(c => c.id === stop.id);
+        if (c) {
+          let status;
+          if (arr <= stop.tw_end) { status = 'served'; stats.ontime++; }
+          else if (arr <= stop.tw_end + 20) { status = 'late'; stats.late++; }
+          else { status = 'missed'; stats.missed++; }
+          c.status = status;
+          c.arrivedAt = arr;
+          vs.load -= c.demand;
+          vs.delivered++;
+
+          addLog(stop.label, status, arr, stop.tw_start, stop.tw_end, vehicles[i].label);
+          updateStats();
+        }
+      } else {
+        const spd = 2.5 * simSpeed;
+        vs.x += (dx / d) * spd;
+        vs.y += (dy / d) * spd;
+      }
+    }
+
+    if (vs.phase === 'serving') {
+      if (simTime >= stop.departure) {
+        vs.phase = 'waiting';
+      }
+    }
+  }
+
+  updateVehiclePanel();
+  drawMap();
+}
+
+// ========== DRAWING ==========
+function drawEmpty() {
+  if (!ctx) { canvas = document.getElementById('map-canvas'); ctx = canvas.getContext('2d'); }
+  ctx.clearRect(0, 0, W, H);
+  drawGrid();
+  ctx.fillStyle = 'rgba(90,96,112,0.4)';
+  ctx.font = "14px 'Space Mono', monospace";
+  ctx.textAlign = 'center';
+  ctx.fillText('Configure and generate a scenario to begin', W / 2, H / 2);
+}
+
+function drawGrid() {
+  ctx.strokeStyle = 'rgba(30,34,48,0.8)';
+  ctx.lineWidth = 1;
+  const step = 40;
+  for (let x = 0; x < W; x += step) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+  }
+  for (let y = 0; y < H; y += step) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+  }
+}
+
+function drawMap() {
+  if (!ctx) { canvas = document.getElementById('map-canvas'); ctx = canvas.getContext('2d'); }
+  ctx.clearRect(0, 0, W, H);
+  drawGrid();
+
+  // Draw routes (lines)
+  for (let i = 0; i < routes.length; i++) {
+    const r = routes[i];
+    const col = vehicles[r.vehicleId].color;
+    ctx.strokeStyle = col + '30';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(depot.x, depot.y);
+    for (const s of r.stops) { ctx.lineTo(s.x, s.y); }
+    ctx.lineTo(depot.x, depot.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // Travelled path (solid)
+  for (let i = 0; i < routes.length; i++) {
+    const vs = vehicleStates[i];
+    const r = routes[i];
+    const col = vehicles[r.vehicleId].color;
+    if (vs.stopIdx < 0) continue;
+
+    ctx.strokeStyle = col + '80';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(depot.x, depot.y);
+    for (let s = 0; s <= vs.stopIdx && s < r.stops.length; s++) {
+      ctx.lineTo(r.stops[s].x, r.stops[s].y);
+    }
+    if (vs.phase === 'moving' || vs.phase === 'returning') {
+      ctx.lineTo(vs.x, vs.y);
+    }
+    ctx.stroke();
+  }
+
+  // Draw customers
+  for (const c of customers) {
+    const isHover = hoverNode && hoverNode.id === c.id;
+    const r = isHover ? 12 : 9;
+
+    let fill, stroke;
+    if (c.status === 'served') { fill = '#00e5a020'; stroke = '#00e5a0'; }
+    else if (c.status === 'late') { fill = '#ffd43b20'; stroke = '#ffd43b'; }
+    else if (c.status === 'missed') { fill = '#ff6b3520'; stroke = '#ff6b35'; }
+    else { fill = '#1e223080'; stroke = '#5a6070'; }
+
+    // Time window arc
+    const twStart = (c.tw_start - DAY_START) / DAY_DUR;
+    const twEnd = (c.tw_end - DAY_START) / DAY_DUR;
+    ctx.strokeStyle = stroke + '60';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, r + 5, twStart * Math.PI * 2 - Math.PI / 2, twEnd * Math.PI * 2 - Math.PI / 2);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, r, 0, Math.PI * 2);
+    ctx.fillStyle = fill;
+    ctx.fill();
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = isHover ? 2.5 : 1.5;
+    ctx.stroke();
+
+    ctx.fillStyle = stroke;
+    ctx.font = `bold ${isHover ? 9 : 7}px 'Space Mono', monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(c.label, c.x, c.y);
+  }
+
+  // Draw depot
+  const dR = 14;
+  ctx.beginPath();
+  ctx.rect(depot.x - dR, depot.y - dR, dR * 2, dR * 2);
+  ctx.fillStyle = '#ff6b3520';
+  ctx.fill();
+  ctx.strokeStyle = '#ff6b35';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.fillStyle = '#ff6b35';
+  ctx.font = "bold 8px 'Space Mono', monospace";
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('DEP', depot.x, depot.y);
+
+  // Draw vehicles
+  for (let i = 0; i < vehicleStates.length; i++) {
+    const vs = vehicleStates[i];
+    if (vs.phase === 'done' || vs.phase === 'waiting' && vs.stopIdx === -1) continue;
+
+    const vR = 7;
+    ctx.beginPath();
+    ctx.arc(vs.x, vs.y, vR, 0, Math.PI * 2);
+    ctx.fillStyle = vs.color;
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    ctx.fillStyle = '#000';
+    ctx.font = "bold 6px 'Space Mono', monospace";
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(vs.label, vs.x, vs.y);
+  }
+}
+
+// ========== UI UPDATES ==========
+function updateVehiclePanel() {
+  const panel = document.getElementById('vehicle-panel');
+  if (!vehicleStates.length) return;
+  panel.innerHTML = vehicleStates.map((vs, i) => {
+    const r = routes[i];
+    const loadPct = r ? (vs.routeLoad / vs.capacity * 100) : 0;
+    return `
+    <div class="vehicle-item ${vs.phase !== 'done' && vs.phase !== 'waiting' || vs.stopIdx >= 0 ? 'active' : ''}">
+      <div class="v-top">
+        <div class="v-name">
+          <div class="v-dot" style="background:${vs.color}"></div>
+          ${vs.label}
+        </div>
+        <div class="v-status">${vs.status}</div>
+      </div>
+      <div class="v-bar-bg">
+        <div class="v-bar" style="width:${loadPct}%; background:${vs.color}"></div>
+      </div>
+      <div class="v-meta">
+        <span>Load: ${vs.routeLoad}/${vs.capacity}</span>
+        <span>${r ? r.stops.length : 0} stops · ${vs.delivered} done</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function updateStats() {
+  const total = customers.length;
+  const served = stats.ontime + stats.late;
+  document.getElementById('stat-dist').textContent = Math.round(stats.dist) || calcTotalDist();
+  document.getElementById('stat-ontime').textContent = stats.ontime;
+  document.getElementById('stat-late').textContent = stats.late;
+  document.getElementById('stat-missed').textContent = stats.missed;
+}
+
+function calcTotalDist() {
+  let d = 0;
+  for (const r of routes) {
+    let prev = depot;
+    for (const s of r.stops) { d += dist(prev, s); prev = s; }
+    d += dist(prev, depot);
+  }
+  return Math.round(d / 10);
+}
+
+function addLog(label, status, arr, twStart, twEnd, vLabel) {
+  const panel = document.getElementById('log-panel');
+  if (panel.querySelector('.no-log')) panel.innerHTML = '';
+  const cls = status === 'served' ? 'ok' : status === 'late' ? 'late' : 'missed';
+  const icon = status === 'served' ? '✓' : status === 'late' ? '⚠' : '✗';
+  const entry = document.createElement('div');
+  entry.className = `log-entry ${cls}`;
+  entry.innerHTML = `
+    <div>${icon} <b>${label}</b> by <b>${vLabel}</b></div>
+    <div class="log-time">${fmtTime(arr)} | Window: ${fmtTime(twStart)}–${fmtTime(twEnd)}</div>
+    <div style="color:var(--muted)">${status === 'served' ? 'On time' : status === 'late' ? `Late by ${Math.round(arr - twEnd)}min` : 'Window missed'}</div>`;
+  panel.prepend(entry);
+}
+
+function fmtTime(mins) {
+  const h = Math.floor(mins / 60);
+  const m = Math.floor(mins % 60);
+  return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+}
+
+function setPhase(n) {
+  document.getElementById('phase-label').textContent =
+    ['--','Planning Routes','Simulation Running','Simulation Complete'][n] || '--';
+}
+
+function setPhaseStep(id, state) {
+  const el = document.getElementById(id);
+  el.className = 'phase-step' + (state === 'active' ? ' active' : state === 'done' ? ' done' : '');
+}
+
+// ========== HOVER ==========
+function onMouseMove(e) {
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  const tt = document.getElementById('tooltip');
+  let found = null;
+
+  for (const c of customers) {
+    if (Math.sqrt((c.x - mx) ** 2 + (c.y - my) ** 2) < 14) { found = c; break; }
+  }
+
+  if (found) {
+    hoverNode = found;
+    document.getElementById('tt-title').textContent = found.label;
+    document.getElementById('tt-body').innerHTML =
+      `Demand: ${found.demand}<br>Window: ${fmtTime(found.tw_start)} – ${fmtTime(found.tw_end)}<br>Service: ${found.service} min<br>Status: ${found.status}${found.arrivedAt ? '<br>Arrived: ' + fmtTime(found.arrivedAt) : ''}`;
+    tt.style.display = 'block';
+    tt.style.left = (e.clientX + 14) + 'px';
+    tt.style.top = (e.clientY - 10) + 'px';
+  } else {
+    hoverNode = null;
+    tt.style.display = 'none';
+  }
+}
+
+// ========== SIMULATION CONTROL ==========
+function runSimulation() {
+  running = true;
+  simTime = DAY_START;
+  document.getElementById('btn-run').disabled = true;
+  document.getElementById('btn-pause').disabled = false;
+  document.getElementById('sim-state-label').textContent = 'RUNNING';
+  document.getElementById('sim-dot').classList.add('active');
+  setPhase(2);
+  simTimer = setInterval(tick, 16);
+}
+
+function pauseSimulation() {
+  if (running) {
+    running = false;
+    clearInterval(simTimer);
+    document.getElementById('btn-pause').textContent = '▶ Resume';
+    document.getElementById('sim-state-label').textContent = 'PAUSED';
+  } else {
+    running = true;
+    simTimer = setInterval(tick, 16);
+    document.getElementById('btn-pause').textContent = '⏸ Pause';
+    document.getElementById('sim-state-label').textContent = 'RUNNING';
+  }
+}
+
+function endSimulation() {
+  running = false;
+  clearInterval(simTimer);
+  setPhase(3);
+  setPhaseStep('ph-run', 'done');
+  setPhaseStep('ph-done', 'active');
+  document.getElementById('btn-pause').disabled = true;
+  document.getElementById('sim-state-label').textContent = 'COMPLETE';
+  stats.dist = calcTotalDist();
+  updateStats();
+  drawMap();
+}
+
+function resetAll() {
+  running = false;
+  clearInterval(simTimer);
+  generated = false;
+  customers = []; depot = null; vehicles = []; routes = [];
+  vehicleStates = []; deliveryLog = []; stats = { dist:0, ontime:0, late:0, missed:0 };
+  simTime = DAY_START;
+  document.getElementById('btn-run').disabled = true;
+  document.getElementById('btn-pause').disabled = true;
+  document.getElementById('btn-pause').textContent = '⏸ Pause';
+  document.getElementById('sim-state-label').textContent = 'READY';
+  document.getElementById('timeline-fill').style.width = '0%';
+  document.getElementById('clock-display').textContent = '08:00';
+  document.getElementById('fleet-count').textContent = '0 vehicles';
+  document.getElementById('vehicle-panel').innerHTML = '<div style="color:var(--muted); font-size:0.65rem; text-align:center; margin-top:40px;">Generate a scenario<br>to see fleet status</div>';
+  document.getElementById('log-panel').innerHTML = '<div style="color:var(--muted); font-size:0.65rem; text-align:center; margin-top:20px;">Log will appear here</div>';
+  ['stat-dist','stat-ontime','stat-late','stat-missed'].forEach(id => document.getElementById(id).textContent = '--');
+  setPhase(0);
+  ['ph-gen','ph-plan','ph-run','ph-done'].forEach(id => { document.getElementById(id).className = 'phase-step'; });
+  setPhaseStep('ph-gen','active');
+  drawEmpty();
+}
+
+// ========== SLIDER WIRING ==========
+function wireSlider(id, valId) {
+  const sl = document.getElementById(id);
+  const vl = document.getElementById(valId);
+  sl.addEventListener('input', () => vl.textContent = sl.value);
+}
+wireSlider('sl-customers', 'val-customers');
+wireSlider('sl-vehicles', 'val-vehicles');
+wireSlider('sl-capacity', 'val-capacity');
+wireSlider('sl-tightness', 'val-tightness');
+
+// Speed buttons
+document.querySelectorAll('.speed-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.speed-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    simSpeed = parseFloat(btn.dataset.speed);
+  });
+});
+
+// Action buttons
+document.getElementById('btn-generate').addEventListener('click', () => {
+  resetAll();
+  setTimeout(() => {
+    setPhaseStep('ph-gen','active');
+    generateScenario();
+  }, 50);
+});
+document.getElementById('btn-run').addEventListener('click', runSimulation);
+document.getElementById('btn-pause').addEventListener('click', pauseSimulation);
+document.getElementById('btn-reset').addEventListener('click', resetAll);
+
+// ========== INIT ==========
+initCanvas();
+ctx = canvas.getContext('2d');
+drawEmpty();
+setPhaseStep('ph-gen','active');
+</script>
+</body>
+</html>
